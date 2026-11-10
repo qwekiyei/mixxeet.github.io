@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="ru" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EdgeSwipe — Яркость и громкость краями трекпада Mac</title>
+    <meta name="description" content="Бесплатное приложение для macOS от @mirxxeet. Управляйте яркостью, громкостью и треками свайпами по краям трекпада. 0 ₽ навсегда.">
+    <!-- Подключаем Tailwind CSS и шрифт Inter -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                    },
+                    colors: {
+                        bgDark: '#0B0B0E',
+                        cardDark: '#141419',
+                        cardBorder: 'rgba(255, 255, 255, 0.08)',
+                        pastelPink: '#FFADC9',
+                        pastelPinkDark: '#F080AB',
+                        pastelPinkGlow: 'rgba(255, 173, 201, 0.25)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0B0B0E;
+            color: #F5F5F7;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            overflow-x: hidden;
+            selection-background-color: #FFADC9;
+            selection-color: #0B0B0E;
+        }
+
+        ::selection {
+            background: #FFADC9;
+            color: #0B0B0E;
+        }
+
+        /* Плавные анимации появления при скролле */
+        .reveal {
+            opacity: 0;
+            transform: translateY(34px) scale(0.985);
+            transition: opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+                        transform 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+            will-change: opacity, transform;
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        .delay-100 { transition-delay: 100ms; }
+        .delay-200 { transition-delay: 200ms; }
+        .delay-300 { transition-delay: 300ms; }
+
+        /* Неоновые свечения на фоне */
+        .ambient-glow {
+            position: absolute;
+            border-radius: 9999px;
+            filter: blur(110px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Стеклянные карточки */
+        .glass-card {
+            background: rgba(22, 22, 27, 0.72);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                        border-color 0.3s ease,
+                        box-shadow 0.3s ease;
+        }
+
+        .glass-card:hover {
+            border-color: rgba(255, 173, 201, 0.35);
+            box-shadow: 0 20px 50px -15px rgba(255, 173, 201, 0.12);
+        }
+
+        .pink-gradient-text {
+            background: linear-gradient(135deg, #FFFFFF 0%, #FFADC9 55%, #F080AB 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .pink-btn {
+            background: linear-gradient(135deg, #FFADC9 0%, #F080AB 100%);
+            color: #0B0B0E;
+            box-shadow: 0 8px 30px rgba(255, 173, 201, 0.35);
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .pink-btn:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 14px 38px rgba(255, 173, 201, 0.55);
+        }
+
+        .pink-btn:active {
+            transform: translateY(0) scale(0.99);
+        }
+
+        /* Пульсация краев интерактивного трекпада */
+        @keyframes edgePulse {
+            0%, 100% { opacity: 0.35; }
+            50% { opacity: 0.85; }
+        }
+
+        .edge-line-glow {
+            animation: edgePulse 3s infinite ease-in-out;
+        }
+
+        /* Кастомные ползунки */
+        input[type=range].pink-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 999px;
+            background: rgba(255, 173, 201, 0.22);
+            outline: none;
+        }
+
+        input[type=range].pink-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #FFFFFF;
+            border: 3px solid #F080AB;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+            transition: transform 0.15s ease;
+        }
+
+        input[type=range].pink-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+
+        /* Поверхность трекпада */
+        .trackpad-surface {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="relative antialiased selection:bg-pastelPink selection:text-bgDark">
+
+    <!-- Фоновые пастельно-розовые свечения -->
+    <div class="ambient-glow w-[500px] h-[500px] bg-pastelPink/15 top-[-120px] left-1/2 -translate-x-1/2"></div>
+    <div class="ambient-glow w-[420px] h-[420px] bg-pastelPinkDark/10 top-[950px] right-[-100px]"></div>
+    <div class="ambient-glow w-[460px] h-[460px] bg-pastelPink/10 top-[2400px] left-[-120px]"></div>
+
+    <!-- Навигационная панель (исправлены отступы, убрана кнопка скачивания и лишние надписи) -->
+    <header class="fixed top-0 left-0 right-0 z-50 border-b border-white/[0.07] bg-[#0B0B0E]/80 backdrop-blur-2xl">
+        <div class="max-w-6xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between gap-4">
+            <!-- Логотип ES (слева, фиксированная ширина без наложений) -->
+            <a href="#" class="flex items-center gap-3 shrink-0 group">
+                <div class="w-8 h-8 rounded-[9px] bg-white flex items-center justify-center shadow-sm border border-pastelPink/60 group-hover:scale-105 transition-transform">
+                    <span class="text-[#121217] font-black text-xs tracking-tight">ES</span>
+                </div>
+                <span class="font-bold text-[15px] tracking-tight text-white">EdgeSwipe</span>
+            </a>
+
+            <!-- Навигационные ссылки (по центру с достаточным отступом) -->
+            <nav class="hidden lg:flex items-center gap-8 text-[13px] font-medium text-white/65 shrink-0">
+                <a href="#demo" class="hover:text-pastelPink transition-colors whitespace-nowrap">Потрогать</a>
+                <a href="#features" class="hover:text-pastelPink transition-colors whitespace-nowrap">Возможности</a>
+                <a href="#inside" class="hover:text-pastelPink transition-colors whitespace-nowrap">Интерфейс</a>
+                <a href="#install" class="hover:text-pastelPink transition-colors whitespace-nowrap">Установка</a>
+                <a href="#pricing" class="hover:text-pastelPink transition-colors whitespace-nowrap">Зачем платить?</a>
+                <a href="#faq" class="hover:text-pastelPink transition-colors whitespace-nowrap">Вопросы</a>
+            </nav>
+
+            <!-- Ссылки @mirxxeet справа (без кнопки Скачать) -->
+            <div class="flex items-center gap-2 shrink-0">
+                <a href="https://t.me/mirxxeet" target="_blank" rel="noopener noreferrer"
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.05] hover:bg-pastelPink/15 border border-white/10 hover:border-pastelPink/40 text-xs font-medium text-white/85 hover:text-pastelPink transition whitespace-nowrap">
+                    <svg class="w-3.5 h-3.5 text-pastelPink shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21.9 3.4L2.2 11.1c-1.3.5-1.3 1.3-.2 1.6l5 1.6 11.6-7.3c.5-.3 1-.1.6.2l-9.4 8.5-.3 4.9c.5 0 .7-.2 1-.5l2.4-2.3 5 3.7c.9.5 1.6.2 1.8-.9L23 4.6c.3-1.3-.5-1.9-1.1-1.2z"/>
+                    </svg>
+                    <span>Telegram</span>
+                </a>
+                <a href="https://www.tiktok.com/@mirxxeet?_r=1&_t=ZN-9BIHo590SmM" target="_blank" rel="noopener noreferrer"
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.05] hover:bg-pastelPink/15 border border-white/10 hover:border-pastelPink/40 text-xs font-medium text-white/85 hover:text-pastelPink transition whitespace-nowrap">
+                    <svg class="w-3.5 h-3.5 text-pastelPink shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z"/>
+                    </svg>
+                    <span class="hidden sm:inline">TikTok</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="relative z-10 pt-28 sm:pt-36 pb-20">
+
+        <!-- 1. HERO SECTION (Без имени/фамилии, ровно одна кнопка "Скачать" с прокруткой к #pricing) -->
+        <section class="max-w-4xl mx-auto px-4 sm:px-6 text-center mb-24 sm:mb-32">
+            <div class="reveal inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.04] border border-pastelPink/25 text-xs sm:text-sm text-pastelPink mb-7">
+                <span class="w-1.5 h-1.5 rounded-full bg-pastelPink"></span>
+                <span>Для MacBook и Magic Trackpad • macOS 13+ • Полностью бесплатно</span>
+            </div>
+
+            <h1 class="reveal delay-100 text-4xl sm:text-6xl md:text-7xl font-black tracking-tight leading-[1.06] mb-6">
+                У вашего трекпада есть <span class="pink-gradient-text">суперсила.</span><br>
+                Apple просто её не включила.
+            </h1>
+
+            <p class="reveal delay-200 max-w-2xl mx-auto text-base sm:text-xl text-white/65 font-normal leading-relaxed mb-10">
+                Левый край меняет <span class="text-white font-semibold">яркость</span>, правый — <span class="text-white font-semibold">громкость</span>, нижний переключает <span class="text-white font-semibold">треки</span>, а двойной тап в углу выключает звук. С нативной верхней плашкой macOS и тактильным откликом на каждом делении.
+            </p>
+
+            <!-- ЕДИНСТВЕННАЯ КНОПКА "Скачать", которая скроллит вниз к блоку "Зачем платить?" -->
+            <div class="reveal delay-300 flex justify-center mb-9">
+                <a href="#pricing" class="pink-btn px-10 py-4 rounded-2xl font-extrabold text-base sm:text-lg inline-flex items-center justify-center">
+                    Скачать
+                </a>
+            </div>
+
+            <!-- Бейджи преимуществ (строгие векторные галочки) -->
+            <div class="reveal delay-300 flex flex-wrap items-center justify-center gap-x-7 gap-y-2 text-xs sm:text-sm text-white/50">
+                <span class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-pastelPink" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    0 ₽ навсегда — без лицензий и ключей
+                </span>
+                <span class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-pastelPink" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    Верхняя капсула HUD как в macOS
+                </span>
+                <span class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-pastelPink" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    Тактильный отклик Taptic Engine
+                </span>
+            </div>
+        </section>
+
+        <!-- 2. РЕАЛИСТИЧНЫЙ И МИНИМАЛИСТИЧНЫЙ СИМУЛЯТОР MACOS И MAGIC TRACKPAD (БЕЗ ЭМОДЗИ) -->
+        <section id="demo" class="max-w-5xl mx-auto px-4 sm:px-6 mb-28 sm:mb-36">
+            <div class="reveal text-center mb-10">
+                <span class="text-xs font-extrabold uppercase tracking-widest text-pastelPink">Интерактивное демо</span>
+                <h2 class="text-3xl sm:text-5xl font-black tracking-tight mt-2 mb-3">Потяните за край трекпада</h2>
+                <p class="text-white/60 max-w-xl mx-auto text-sm sm:text-base">
+                    Проведите курсором или пальцем вверх и вниз вдоль тонких боковых граней трекпада, проведите вдоль нижнего края или кликните в правый верхний угол.
+                </p>
+            </div>
+
+            <div class="reveal glass-card rounded-[28px] p-4 sm:p-8 relative overflow-hidden">
+                <!-- Реалистичный экран macOS (без единого эмодзи, только нативные векторные иконки) -->
+                <div class="relative w-full h-52 sm:h-60 rounded-2xl bg-gradient-to-br from-[#1A1A23] via-[#121218] to-[#0D0D12] border border-white/10 overflow-hidden mb-8 flex flex-col justify-between shadow-2xl">
+                    
+                    <!-- Декоративное фоновое свечение обоев macOS -->
+                    <div class="absolute -top-20 right-10 w-72 h-72 rounded-full bg-pastelPink/10 blur-3xl pointer-events-none"></div>
+
+                    <!-- Настоящая строка меню macOS -->
+                    <div class="relative z-10 h-7 px-3.5 bg-black/45 backdrop-blur-xl border-b border-white/[0.07] flex items-center justify-between text-[12px] text-white/90 select-none">
+                        <!-- Левая часть Menu Bar -->
+                        <div class="flex items-center gap-4">
+                            <!-- Apple SVG -->
+                            <svg class="w-3.5 h-3.5 fill-current text-white" viewBox="0 0 170 170">
+                                <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.13-1.9-14.34-6.08-3.69-3.03-7.61-7.82-11.77-14.37-5.93-9.29-10.72-20.03-14.37-32.21-3.66-12.18-5.48-23.38-5.48-33.59 0-12.71 3.16-23.22 9.47-31.51 6.32-8.29 14.25-12.61 23.81-12.95 4.69 0 9.89 1.38 15.6 4.12 5.7 2.75 9.39 4.18 11.07 4.29 1.34 0 5.42-1.62 12.24-4.86 6.82-3.24 12.58-4.63 17.27-4.18 12.86 1.04 22.53 6.08 29.01 15.1-11.51 6.98-17.16 16.71-16.93 29.2.22 9.73 3.86 17.81 10.9 24.25 4.81 4.47 10.51 7.32 17.1 8.55-1.38 4.25-2.99 8.33-4.84 12.24zM119.22 31.01c0 7.62-2.78 14.69-8.34 21.22-6.71 7.83-14.84 12.35-23.69 11.63-.11-.9-.17-1.85-.17-2.86 0-7.3 3.05-15.11 8.51-21.48 2.72-3.15 6.18-5.77 10.38-7.86 4.2-2.08 8.19-3.24 11.97-3.47.23 1.01.34 1.95.34 2.82z"/>
+                            </svg>
+                            <span class="font-semibold">Finder</span>
+                            <span class="hidden sm:inline text-white/65">Файл</span>
+                            <span class="hidden sm:inline text-white/65">Правка</span>
+                            <span class="hidden sm:inline text-white/65">Вид</span>
+                            <span class="hidden md:inline text-white/65">Переход</span>
+                        </div>
+
+                        <!-- Правая часть Menu Bar (Иконка ES, Wi-Fi, Батарея, Пункт управления, Часы) -->
+                        <div class="flex items-center gap-3.5">
+                            <!-- Значок ES в статус-баре -->
+                            <div class="px-1.5 py-0.5 rounded bg-white text-[#111115] font-black text-[10px] tracking-tight leading-none shadow-sm">ES</div>
+                            
+                            <!-- Wi-Fi SVG -->
+                            <svg class="w-3.5 h-3.5 text-white/85" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/>
+                            </svg>
+
+                            <!-- Батарея SVG -->
+                            <div class="hidden sm:flex items-center gap-1 text-[11px] text-white/80">
+                                <span>100%</span>
+                                <svg class="w-5 h-3.5 text-white/85" viewBox="0 0 26 14" fill="none">
+                                    <rect x="1" y="1" width="21" height="12" rx="3" stroke="currentColor" stroke-width="1.5"/>
+                                    <rect x="3" y="3" width="17" height="8" rx="1.5" fill="currentColor"/>
+                                    <path d="M24 5v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                </svg>
+                            </div>
+
+                            <!-- Control Center SVG -->
+                            <svg class="w-3.5 h-3.5 text-white/85" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="5" width="18" height="6" rx="3"/>
+                                <circle cx="16" cy="8" r="1.5" fill="currentColor"/>
+                                <rect x="3" y="13" width="18" height="6" rx="3"/>
+                                <circle cx="8" cy="16" r="1.5" fill="currentColor"/>
+                            </svg>
+
+                            <span class="text-[11.5px] font-medium text-white/90">Вт 10 нояб. 20:52</span>
+                        </div>
+                    </div>
+
+                    <!-- Всплывающая нативная системная плашка macOS (Top-Right Pill HUD без эмодзи) -->
+                    <div id="hudPill" class="absolute top-10 right-4 sm:right-5 w-[272px] sm:w-[288px] px-4 py-3 rounded-full bg-[#24242C]/85 backdrop-blur-2xl border border-white/20 shadow-[0_12px_36px_rgba(0,0,0,0.55)] transition-all duration-200">
+                        <div class="flex items-center justify-between mb-2">
+                            <span id="hudTitle" class="text-[12px] font-semibold text-white/95 tracking-tight">MacBook Air Speakers</span>
+                            <span id="hudPercentBadge" class="text-[11px] font-semibold text-white/60 tabular-nums">56%</span>
+                        </div>
+                        <div class="flex items-center gap-2.5">
+                            <!-- Левая векторная иконка (динамик/солнце) -->
+                            <div id="hudLeftIcon" class="w-4 h-4 text-white/80 flex items-center justify-center shrink-0">
+                                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+                                </svg>
+                            </div>
+
+                            <!-- Шкала с 16 точками и белым заполнением -->
+                            <div class="relative flex-1 h-3.5 flex items-center">
+                                <div class="w-full flex items-center justify-between px-0.5">
+                                    <span class="w-1 h-1 rounded-full bg-white/30"></span>
+                                    <span class="w-1 h-1 rounded-full bg-white/30"></span>
+                                    <span class="w-1 h-1 rounded-full bg-white/30"></span>
+                                    <span class="w-1 h-1 rounded-full bg-white/30"></span>
+                                    <span class="w-1 h-1 rounded-full bg-white/30"></span>
+                                    <span class="w-1 h-1 rounded-full bg-white/30"></span>
+                                    <span class="w-1 h-1 rounded-full bg-white/30"></span>
+                                    <span class="w-1 h-1 rounded-full bg-white/30"></span>
+                                    <span class="w-1 h-1 rounded-full bg-white/30"></span>
+                                    <span class="w-1 h-1 rounded-full bg-white/30"></span>
+                                    <span class="w-1 h-1 rounded-full bg-white/35"></span>
+                                    <span class="w-1 h-1 rounded-full bg-white/35"></span>
+                                    <span class="w-1 h-1 rounded-full bg-white/35"></span>
+                                    <span class="w-1 h-1 rounded-full bg-white/35"></span>
+                                    <span class="w-1 h-1 rounded-full bg-white/35"></span>
+                                    <span class="w-1 h-1 rounded-full bg-white/35"></span>
+                                </div>
+                                <div class="absolute inset-x-0 h-[5px] rounded-full bg-white/15"></div>
+                                <div id="hudFillBar" class="absolute left-0 h-[5px] rounded-full bg-white shadow-[0_0_10px_rgba(255,173,201,0.75)] transition-all duration-75" style="width: 56%;"></div>
+                            </div>
+
+                            <!-- Правая векторная иконка -->
+                            <div id="hudRightIcon" class="w-4 h-4 text-white/95 flex items-center justify-center shrink-0">
+                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M11 5L6 9H2v6h4l5 4V5zm4.5 2.5a6.5 6.5 0 010 9l-1.4-1.4a4.5 4.5 0 000-6.2l1.4-1.4zm2.8-2.8a10.5 10.5 0 010 14.6l-1.4-1.4a8.5 8.5 0 000-11.8l1.4-1.4z"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Нижняя строка состояния демо-экрана -->
+                    <div class="relative z-10 px-4 py-2.5 flex items-center justify-between text-xs text-white/50 border-t border-white/[0.04] bg-black/20">
+                        <span id="demoStatusText" class="text-white/75 font-medium">Ведите вдоль левой или правой грани трекпада</span>
+                        <span id="demoTrackText" class="hidden sm:inline text-white/45 font-mono text-[11px]">Now Playing: @mirxxeet — Night Drive</span>
+                    </div>
+                </div>
+
+                <!-- Реалистичный минималистичный Magic Trackpad (Space Black матовое стекло, тонкие линии краёв) -->
+                <div id="trackpadArea" class="trackpad-surface relative max-w-[540px] mx-auto h-72 sm:h-80 rounded-[26px] bg-gradient-to-b from-[#1D1D22] via-[#16161B] to-[#121216] border border-white/[0.14] shadow-[0_24px_60px_rgba(0,0,0,0.75),inset_0_1px_0_rgba(255,255,255,0.12)] overflow-hidden flex items-center justify-center">
+                    
+                    <!-- Левая сенсорная грань (Яркость) -->
+                    <div id="leftEdgeZone" class="group absolute left-0 top-0 bottom-11 w-14 flex items-center justify-start pl-3.5 cursor-ns-resize select-none">
+                        <div class="w-[3px] h-4/5 rounded-full bg-white/15 group-hover:bg-pastelPink transition-colors relative overflow-hidden edge-line-glow">
+                            <div id="leftEdgeFill" class="absolute bottom-0 inset-x-0 bg-pastelPink rounded-full transition-all duration-75" style="height: 72%;"></div>
+                        </div>
+                        <span class="ml-2.5 text-[10px] font-semibold uppercase tracking-widest text-white/35 group-hover:text-pastelPink transition-colors [writing-mode:vertical-lr] rotate-180">Яркость</span>
+                    </div>
+
+                    <!-- Правая сенсорная грань (Громкость + угловой тап Mute) -->
+                    <div id="rightEdgeZone" class="group absolute right-0 top-0 bottom-11 w-14 flex items-center justify-end pr-3.5 cursor-ns-resize select-none">
+                        <!-- Угловая точка для двойного тапа (Mute) -->
+                        <button id="cornerTapZone" title="Кликните для выключения звука (Mute)" class="absolute top-3 right-3 px-2 py-1 rounded-md bg-white/[0.04] hover:bg-pastelPink/20 border border-white/10 hover:border-pastelPink/50 text-[10px] font-medium text-white/55 hover:text-pastelPink transition">
+                            Mute
+                        </button>
+
+                        <span class="mr-2.5 text-[10px] font-semibold uppercase tracking-widest text-white/35 group-hover:text-pastelPink transition-colors [writing-mode:vertical-lr]">Громкость</span>
+                        <div class="w-[3px] h-4/5 rounded-full bg-white/15 group-hover:bg-pastelPink transition-colors relative overflow-hidden edge-line-glow">
+                            <div id="rightEdgeFill" class="absolute bottom-0 inset-x-0 bg-pastelPink rounded-full transition-all duration-75" style="height: 56%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Нижняя сенсорная грань (Треки) -->
+                    <div id="bottomEdgeZone" class="group absolute left-14 right-14 bottom-0 h-11 flex flex-col items-center justify-end pb-3 cursor-ew-resize select-none">
+                        <span class="text-[10px] font-semibold uppercase tracking-widest text-white/30 group-hover:text-pastelPink transition-colors mb-1.5">Свайп по нижнему краю — Треки</span>
+                        <div class="w-3/5 h-[3px] rounded-full bg-white/15 group-hover:bg-pastelPink transition-colors edge-line-glow"></div>
+                    </div>
+
+                    <!-- Минималистичная индикация по центру трекпада -->
+                    <div class="text-center pointer-events-none px-16">
+                        <div class="flex items-center justify-center gap-10 sm:gap-16 mb-3">
+                            <div>
+                                <div class="text-[10px] font-bold uppercase tracking-widest text-white/35 mb-1">Яркость</div>
+                                <div class="text-3xl sm:text-4xl font-extrabold text-white/90 tabular-nums"><span id="centerBrightness">72</span><span class="text-base text-pastelPink font-semibold ml-0.5">%</span></div>
+                            </div>
+                            <div class="h-8 w-[1px] bg-white/[0.08]"></div>
+                            <div>
+                                <div class="text-[10px] font-bold uppercase tracking-widest text-white/35 mb-1">Громкость</div>
+                                <div class="text-3xl sm:text-4xl font-extrabold text-white/90 tabular-nums"><span id="centerVolume">56</span><span class="text-base text-pastelPink font-semibold ml-0.5">%</span></div>
+                            </div>
+                        </div>
+                        <p class="text-[11px] text-white/30">Зажмите и ведите вдоль левой, правой или нижней грани</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. ГДЕ ЭТО ВЫРУЧАЕТ (Строгие векторные SVG-иконки вместо эмодзи) -->
+        <section class="max-w-6xl mx-auto px-4 sm:px-6 mb-28 sm:mb-36">
+            <div class="reveal text-center mb-14">
+                <span class="text-xs font-extrabold uppercase tracking-widest text-pastelPink">Где это выручает</span>
+                <h2 class="text-3xl sm:text-5xl font-black tracking-tight mt-2 mb-3">Вы оцените это в первый же вечер</h2>
+                <p class="text-white/60 max-w-xl mx-auto text-sm sm:text-base">
+                    Рука и так лежит на трекпаде. EdgeSwipe просто убирает лишнее движение до верхнего ряда клавиатуры.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Карточка 1 -->
+                <div class="reveal glass-card rounded-3xl p-7 sm:p-8">
+                    <div class="w-11 h-11 rounded-2xl bg-pastelPink/10 border border-pastelPink/25 flex items-center justify-center text-pastelPink mb-5">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072M12 6v12m0 0l-4-4H4v-4h4l4-4z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">Тише — не глядя</h3>
+                    <p class="text-white/65 text-sm sm:text-base leading-relaxed">
+                        Трек или видео вдруг оказались громче остальных. Палец на правый край, чуть вниз — и готово. Зажмите <code class="px-1.5 py-0.5 rounded bg-white/10 text-pastelPink text-xs">⌥ Option + ⇧ Shift</code>, и шаг станет вчетверо мельче.
+                    </p>
+                </div>
+
+                <!-- Карточка 2 -->
+                <div class="reveal delay-100 glass-card rounded-3xl p-7 sm:p-8">
+                    <div class="w-11 h-11 rounded-2xl bg-pastelPink/10 border border-pastelPink/25 flex items-center justify-center text-pastelPink mb-5">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">Тишина за полсекунды</h3>
+                    <p class="text-white/65 text-sm sm:text-base leading-relaxed">
+                        Видео заиграло на созвоне, паре или в метро. Два касания в углу трекпада — звук мгновенно выключен. Быстрее, чем на ощупь искать клавишу F10.
+                    </p>
+                </div>
+
+                <!-- Карточка 3 -->
+                <div class="reveal glass-card rounded-3xl p-7 sm:p-8">
+                    <div class="w-11 h-11 rounded-2xl bg-pastelPink/10 border border-pastelPink/25 flex items-center justify-center text-pastelPink mb-5">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">Яркость в темноте</h3>
+                    <p class="text-white/65 text-sm sm:text-base leading-relaxed">
+                        Ноутбук на коленях ночью, клавиш не видно. Левый край чуть вниз — экран мягко притухает до комфортного уровня и не слепит глаза.
+                    </p>
+                </div>
+
+                <!-- Карточка 4 -->
+                <div class="reveal delay-100 glass-card rounded-3xl p-7 sm:p-8">
+                    <div class="w-11 h-11 rounded-2xl bg-pastelPink/10 border border-pastelPink/25 flex items-center justify-center text-pastelPink mb-5">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">Следующий трек — тем же пальцем</h3>
+                    <p class="text-white/65 text-sm sm:text-base leading-relaxed">
+                        Свайп по нижнему краю переключает песню в Apple Music, Spotify или любом другом плеере. Не нужно ни отрываться от задачи, ни открывать окно плеера.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. ДЕТАЛИ: ПРОДУМАНО ДО КАЖДОГО ЩЕЛЧКА -->
+        <section id="features" class="max-w-6xl mx-auto px-4 sm:px-6 mb-28 sm:mb-36">
+            <div class="reveal text-center mb-14">
+                <span class="text-xs font-extrabold uppercase tracking-widest text-pastelPink">Детали</span>
+                <h2 class="text-3xl sm:text-5xl font-black tracking-tight mt-2 mb-3">Продумано до каждого щелчка</h2>
+                <p class="text-white/60 max-w-xl mx-auto text-sm sm:text-base">
+                    То, что замечаешь в первые минуты работы, и без чего потом уже не можешь.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="reveal glass-card rounded-3xl p-7 md:col-span-2">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pastelPink/15 text-pastelPink text-xs font-bold mb-4">
+                        <span>Нативный HUD macOS</span>
+                    </div>
+                    <h3 class="text-2xl font-bold text-white mb-2">Стандартная верхняя капсула как в macOS</h3>
+                    <p class="text-white/65 text-sm sm:text-base leading-relaxed">
+                        При регулировке яркости или звука в правом верхнем углу прямо под строкой меню плавно выезжает полупрозрачная капсула с матовым стеклом, названием аудиоустройства, 16 точками-делениями и белой шкалой.
+                    </p>
+                </div>
+
+                <div class="reveal delay-100 glass-card rounded-3xl p-7">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pastelPink/15 text-pastelPink text-xs font-bold mb-4">
+                        <span>Taptic Engine</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">Щелчок на каждом шаге</h3>
+                    <p class="text-white/65 text-sm leading-relaxed">
+                        Трекпад отвечает легким тактильным щелчком на каждое деление шкалы. Силу отклика можно настроить: Сильный, Средний, Слабый или Выкл.
+                    </p>
+                </div>
+
+                <div class="reveal glass-card rounded-3xl p-7">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pastelPink/15 text-pastelPink text-xs font-bold mb-4">
+                        <span>Фиксация указателя</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">Курсор стоит на месте</h3>
+                    <p class="text-white/65 text-sm leading-relaxed">
+                        Пока вы ведете пальцем по краю, указатель мыши не двигается — ничего не уезжает и случайно не выделяется.
+                    </p>
+                </div>
+
+                <div class="reveal delay-100 glass-card rounded-3xl p-7">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pastelPink/15 text-pastelPink text-xs font-bold mb-4">
+                        <span>Умное распознавание</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">Без случайных срабатываний</h3>
+                    <p class="text-white/65 text-sm leading-relaxed">
+                        Жест активируется только если палец изначально коснулся края. Если вы просто ведете курсор из центра трекпада к краю — EdgeSwipe не вмешается.
+                    </p>
+                </div>
+
+                <div class="reveal delay-200 glass-card rounded-3xl p-7">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pastelPink/15 text-pastelPink text-xs font-bold mb-4">
+                        <span>Гибкая настройка</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-2">Чувствительность и ширина</h3>
+                    <p class="text-white/65 text-sm leading-relaxed">
+                        Настраивайте скорость отклика от 0.5× до 3.0× и ширину активной зоны края от 3% до 15% под свои привычки.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. ВНУТРИ: РЕАЛИСТИЧНЫЙ ИНТЕРФЕЙС ПРИЛОЖЕНИЯ В СТРОКЕ МЕНЮ (БЕЗ ЭМОДЗИ) -->
+        <section id="inside" class="max-w-5xl mx-auto px-4 sm:px-6 mb-28 sm:mb-36">
+            <div class="reveal text-center mb-10">
+                <span class="text-xs font-extrabold uppercase tracking-widest text-pastelPink">Интерфейс</span>
+                <h2 class="text-3xl sm:text-5xl font-black tracking-tight mt-2 mb-3">Всё под рукой — в одной панели</h2>
+                <p class="text-white/60 max-w-xl mx-auto text-sm sm:text-base mb-6">
+                    Щёлкните значок <span class="px-1.5 py-0.5 rounded bg-white text-black font-black text-xs">ES</span> в строке меню: текущие яркость и громкость, тактильный отклик, жесты для каждого края и выбор темы.
+                </p>
+
+                <!-- Переключатель Темная / Светлая тема без эмодзи -->
+                <div class="inline-flex items-center p-1 rounded-2xl bg-white/[0.04] border border-white/10">
+                    <button id="btnDarkTheme" onclick="setPreviewTheme('dark')" class="px-5 py-2 rounded-xl text-xs font-bold bg-pastelPink text-bgDark transition">
+                        Тёмная тема
+                    </button>
+                    <button id="btnLightTheme" onclick="setPreviewTheme('light')" class="px-5 py-2 rounded-xl text-xs font-bold text-white/70 hover:text-white transition">
+                        Светлая тема
+                    </button>
+                </div>
+            </div>
+
+            <!-- Реалистичная копия панели EdgeSwipe под строкой меню macOS (строгие векторные иконки) -->
+            <div class="reveal flex justify-center">
+                <div id="appMenuReplica" class="w-full max-w-[366px] rounded-[22px] p-4 border transition-colors duration-300 shadow-[0_28px_70px_rgba(0,0,0,0.65)] bg-[#1C1C21] border-white/10 text-white">
+                    
+                    <!-- Шапка окна -->
+                    <div class="flex items-center justify-between mb-3.5">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow border border-pastelPink/60">
+                                <span class="text-[#121217] font-black text-xs">ES</span>
+                            </div>
+                            <span class="font-bold text-base tracking-tight">EdgeSwipe</span>
+                        </div>
+                        <button id="replicaStatusBtn" onclick="toggleReplicaStatus()" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#292930] border border-white/10">
+                            <span id="replicaStatusDot" class="w-2 h-2 rounded-full bg-green-400"></span>
+                            <span id="replicaStatusText">Работает</span>
+                        </button>
+                    </div>
+
+                    <!-- Карточка Яркости и Громкости -->
+                    <div id="replicaStatsCard" class="rounded-2xl p-4 mb-4 flex items-center justify-between bg-[#282830] transition-colors duration-300">
+                        <div class="flex items-center gap-3">
+                            <div class="w-1.5 h-12 rounded-full bg-pastelPink/25 flex flex-col justify-end overflow-hidden">
+                                <div id="replicaBrightBar" class="w-full bg-pastelPink rounded-full transition-all" style="height: 100%;"></div>
+                            </div>
+                            <div>
+                                <div class="text-[10px] font-bold uppercase tracking-wider opacity-60 flex items-center gap-1.5">
+                                    <svg class="w-3 h-3 text-pastelPinkDark" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                                        <circle cx="12" cy="12" r="4"/><path stroke-linecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41"/>
+                                    </svg>
+                                    <span>ЯРКОСТЬ</span>
+                                </div>
+                                <div class="text-3xl font-black tracking-tight tabular-nums"><span id="replicaBrightText">100</span><span class="text-base opacity-60 font-semibold">%</span></div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-3 text-right">
+                            <div>
+                                <div class="text-[10px] font-bold uppercase tracking-wider opacity-60 flex items-center justify-end gap-1.5">
+                                    <span>ГРОМКОСТЬ</span>
+                                    <svg class="w-3 h-3 text-pastelPinkDark" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M11 5L6 9H2v6h4l5 4V5zm4.5 2.5a6.5 6.5 0 010 9l-1.4-1.4a4.5 4.5 0 000-6.2l1.4-1.4z"/>
+                                    </svg>
+                                </div>
+                                <div class="text-3xl font-black tracking-tight tabular-nums"><span id="replicaVolText">41</span><span class="text-base opacity-60 font-semibold">%</span></div>
+                            </div>
+                            <div class="w-1.5 h-12 rounded-full bg-pastelPinkDark/25 flex flex-col justify-end overflow-hidden">
+                                <div id="replicaVolBar" class="w-full bg-pastelPinkDark rounded-full transition-all" style="height: 41%;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Тактильный отклик -->
+                    <div class="flex items-center justify-between px-1 mb-4">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-full bg-pastelPink/20 flex items-center justify-center text-pastelPinkDark">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <div class="text-[13px] font-semibold leading-tight">Тактильный отклик</div>
+                                <div class="text-[11px] opacity-55">Щелчки при свайпе</div>
+                            </div>
+                        </div>
+                        <select class="text-xs font-medium rounded-lg px-2.5 py-1.5 bg-white/10 border border-white/10 outline-none cursor-pointer">
+                            <option class="text-black">Сильный</option>
+                            <option class="text-black">Средний</option>
+                            <option class="text-black">Слабый</option>
+                            <option class="text-black">Выкл.</option>
+                        </select>
+                    </div>
+
+                    <!-- Секция Жесты (с векторными иконками краёв трекпада) -->
+                    <div class="text-[11px] font-bold uppercase tracking-wider opacity-55 px-1 mb-2">Жесты</div>
+                    <div class="space-y-2 mb-4 text-[13px] font-medium px-1">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2.5">
+                                <svg class="w-4 h-4 text-pastelPinkDark" viewBox="0 0 20 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <rect x="1.5" y="1.5" width="17" height="13" rx="2.5"/>
+                                    <line x1="4.5" y1="3.5" x2="4.5" y2="12.5" stroke-width="2.2" stroke-linecap="round"/>
+                                </svg>
+                                <span>Левый край</span>
+                            </div>
+                            <select class="text-xs rounded-lg px-2.5 py-1 bg-white/10 border border-white/10 outline-none w-28">
+                                <option class="text-black">Яркость</option>
+                                <option class="text-black">Громкость</option>
+                                <option class="text-black">Выкл.</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2.5">
+                                <svg class="w-4 h-4 text-pastelPinkDark" viewBox="0 0 20 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <rect x="1.5" y="1.5" width="17" height="13" rx="2.5"/>
+                                    <line x1="15.5" y1="3.5" x2="15.5" y2="12.5" stroke-width="2.2" stroke-linecap="round"/>
+                                </svg>
+                                <span>Правый край</span>
+                            </div>
+                            <select class="text-xs rounded-lg px-2.5 py-1 bg-white/10 border border-white/10 outline-none w-28">
+                                <option class="text-black">Громкость</option>
+                                <option class="text-black">Яркость</option>
+                                <option class="text-black">Выкл.</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2.5">
+                                <svg class="w-4 h-4 text-pastelPinkDark" viewBox="0 0 20 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <rect x="1.5" y="1.5" width="17" height="13" rx="2.5"/>
+                                    <line x1="5" y1="12" x2="15" y2="12" stroke-width="2.2" stroke-linecap="round"/>
+                                </svg>
+                                <span>Нижний край</span>
+                            </div>
+                            <select class="text-xs rounded-lg px-2.5 py-1 bg-white/10 border border-white/10 outline-none w-28">
+                                <option class="text-black">Треки</option>
+                                <option class="text-black">Плей/Пауза</option>
+                                <option class="text-black">Выкл.</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2.5">
+                                <svg class="w-4 h-4 text-pastelPinkDark" viewBox="0 0 20 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <rect x="1.5" y="1.5" width="17" height="13" rx="2.5"/>
+                                    <circle cx="15" cy="5" r="1.8" fill="currentColor"/>
+                                </svg>
+                                <span>Двойной тап в углу</span>
+                            </div>
+                            <select class="text-xs rounded-lg px-2.5 py-1 bg-white/10 border border-white/10 outline-none w-28">
+                                <option class="text-black">Без звука</option>
+                                <option class="text-black">Плей/Пауза</option>
+                                <option class="text-black">Выкл.</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2.5">
+                                <svg class="w-4 h-4 text-pastelPinkDark" viewBox="0 0 20 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <rect x="1.5" y="1.5" width="17" height="13" rx="2.5"/>
+                                    <circle cx="10" cy="11.5" r="1.8" fill="currentColor"/>
+                                </svg>
+                                <span>Тап по низу</span>
+                            </div>
+                            <select class="text-xs rounded-lg px-2.5 py-1 bg-white/10 border border-white/10 outline-none w-28">
+                                <option class="text-black">Выкл.</option>
+                                <option class="text-black">Плей/Пауза</option>
+                                <option class="text-black">Без звука</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="h-[1px] bg-white/10 my-3"></div>
+
+                    <!-- Ползунки чувствительности и ширины края -->
+                    <div class="space-y-3 px-1 mb-3">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="opacity-80">Чувствительность</span>
+                                <span id="sensValText" class="font-semibold opacity-70 tabular-nums">1.5×</span>
+                            </div>
+                            <input type="range" min="0.5" max="3.0" step="0.1" value="1.5" class="pink-slider" oninput="document.getElementById('sensValText').innerText = parseFloat(this.value).toFixed(1) + '×'">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="opacity-80">Ширина края</span>
+                                <span id="edgeWValText" class="font-semibold opacity-70 tabular-nums">6%</span>
+                            </div>
+                            <input type="range" min="3" max="15" step="1" value="6" class="pink-slider" oninput="document.getElementById('edgeWValText').innerText = this.value + '%'">
+                        </div>
+                    </div>
+
+                    <div class="h-[1px] bg-white/10 my-3"></div>
+
+                    <!-- Подпись @mirxxeet с кликабельными кнопками Telegram и TikTok -->
+                    <div class="flex items-center justify-between px-1 pt-1">
+                        <span class="text-[11px] font-medium opacity-60">сделано @mirxxeet</span>
+                        <div class="flex items-center gap-1.5">
+                            <a href="https://t.me/mirxxeet" target="_blank" rel="noopener noreferrer"
+                               class="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-pastelPink/15 text-pastelPinkDark border border-pastelPink/40 hover:bg-pastelPink hover:text-black transition">
+                                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M21.9 3.4L2.2 11.1c-1.3.5-1.3 1.3-.2 1.6l5 1.6 11.6-7.3c.5-.3 1-.1.6.2l-9.4 8.5-.3 4.9c.5 0 .7-.2 1-.5l2.4-2.3 5 3.7c.9.5 1.6.2 1.8-.9L23 4.6c.3-1.3-.5-1.9-1.1-1.2z"/>
+                                </svg>
+                                <span>Telegram</span>
+                            </a>
+                            <a href="https://www.tiktok.com/@mirxxeet?_r=1&_t=ZN-9BIHo590SmM" target="_blank" rel="noopener noreferrer"
+                               class="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-pastelPink/15 text-pastelPinkDark border border-pastelPink/40 hover:bg-pastelPink hover:text-black transition">
+                                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z"/>
+                                </svg>
+                                <span>TikTok</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 6. ТРИ ШАГА ДО ПЕРВОГО СВАЙПА (Без эмодзи) -->
+        <section id="install" class="max-w-6xl mx-auto px-4 sm:px-6 mb-28 sm:mb-36">
+            <div class="reveal text-center mb-14">
+                <span class="text-xs font-extrabold uppercase tracking-widest text-pastelPink">Как начать</span>
+                <h2 class="text-3xl sm:text-5xl font-black tracking-tight mt-2 mb-3">Три шага до первого свайпа</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                <div class="reveal glass-card rounded-3xl p-7 relative">
+                    <span class="text-xs font-black px-2.5 py-1 rounded-lg bg-pastelPink text-bgDark">ШАГ 1</span>
+                    <h3 class="text-xl font-bold text-white mt-4 mb-2">Установите</h3>
+                    <p class="text-white/65 text-sm leading-relaxed">
+                        Скачайте образ и перетащите иконку <b>ES</b> по стрелке в папку «Программы». Значок появится в верхней строке меню.
+                    </p>
+                </div>
+
+                <div class="reveal delay-100 glass-card rounded-3xl p-7 relative">
+                    <span class="text-xs font-black px-2.5 py-1 rounded-lg bg-pastelPink text-bgDark">ШАГ 2</span>
+                    <h3 class="text-xl font-bold text-white mt-4 mb-2">Разрешите запуск</h3>
+                    <p class="text-white/65 text-sm leading-relaxed">
+                        При первом запуске нажмите по иконке <b>Правой кнопкой мыши → Открыть</b> (или подтвердите открытие в настройках Конфиденциальности macOS).
+                    </p>
+                </div>
+
+                <div class="reveal delay-200 glass-card rounded-3xl p-7 relative">
+                    <span class="text-xs font-black px-2.5 py-1 rounded-lg bg-pastelPink text-bgDark">ШАГ 3</span>
+                    <h3 class="text-xl font-bold text-white mt-4 mb-2">Ведите по краю</h3>
+                    <p class="text-white/65 text-sm leading-relaxed">
+                        Проведите пальцем вверх по правому краю — громкость пошла. Слева — яркость. Хотите по-другому — поменяйте в панели.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Минималистичное окно установщика со стрелкой (SVG-папка вместо эмодзи) -->
+            <div class="reveal glass-card rounded-3xl p-6 sm:p-8 max-w-xl mx-auto text-center">
+                <div class="text-xs font-semibold text-white/45 mb-4">Минималистичный установщик EdgeSwipe</div>
+                <div class="rounded-2xl bg-[#F7F7FA] text-[#121217] p-6 sm:p-8 flex items-center justify-around shadow-inner">
+                    <div class="flex flex-col items-center gap-2">
+                        <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-[20px] bg-white shadow-lg border-2 border-pastelPink flex items-center justify-center">
+                            <span class="text-2xl sm:text-3xl font-black text-[#121217]">ES</span>
+                        </div>
+                        <span class="text-xs font-bold">EdgeSwipe.app</span>
+                    </div>
+
+                    <div class="flex flex-col items-center">
+                        <svg class="w-16 sm:w-24 h-8 text-pastelPinkDark" fill="none" stroke="currentColor" stroke-width="3.5" viewBox="0 0 100 32">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 16h82M76 6l14 10-14 10"/>
+                        </svg>
+                    </div>
+
+                    <div class="flex flex-col items-center gap-2">
+                        <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-[20px] bg-[#E8F0FE] border border-blue-300/60 flex items-center justify-center text-blue-500 shadow-sm">
+                            <svg class="w-9 h-9 sm:w-11 sm:h-11" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                            </svg>
+                        </div>
+                        <span class="text-xs font-bold">Applications</span>
+                    </div>
+                </div>
+                <div class="text-[11px] text-white/40 mt-3">сделано @mirxxeet • Telegram / TikTok</div>
+            </div>
+        </section>
+
+        <!-- 7. ЗАЧЕМ ПЛАТИТЬ? (Убраны кринжовые пункты про розовую панель и готовые .dmg/.pkg, добавлена кнопка Скачать) -->
+        <section id="pricing" class="max-w-5xl mx-auto px-4 sm:px-6 mb-28 sm:mb-36 scroll-mt-24">
+            <div class="reveal text-center mb-12">
+                <span class="text-xs font-extrabold uppercase tracking-widest text-pastelPink">Сравнение</span>
+                <h2 class="text-3xl sm:text-5xl font-black tracking-tight mt-2 mb-3">Зачем платить, если есть EdgeSwipe?</h2>
+                <p class="text-white/60 max-w-xl mx-auto text-sm sm:text-base">
+                    Все функции управления краями трекпада, нативный верхний индикатор macOS и тактильный отклик — абсолютно бесплатно и без привязки к ключам.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+                <!-- Платные аналоги -->
+                <div class="reveal glass-card rounded-3xl p-7 sm:p-9 opacity-65 flex flex-col justify-between">
+                    <div>
+                        <div class="text-xs font-bold uppercase tracking-wider text-white/40 mb-2">Платные аналоги</div>
+                        <div class="flex items-baseline gap-2 mb-6">
+                            <span class="text-4xl sm:text-5xl font-black text-white/50 line-through">399 ₽</span>
+                            <span class="text-sm text-white/40">/ лицензионный ключ</span>
+                        </div>
+                        <ul class="space-y-3.5 text-sm text-white/55 mb-8">
+                            <li class="flex items-start gap-2.5"><span class="mt-0.5 text-white/40">✕</span> <span>Привязка лицензионного ключа максимум к 3 компьютерам Mac</span></li>
+                            <li class="flex items-start gap-2.5"><span class="mt-0.5 text-white/40">✕</span> <span>Необходимость активации и проверки ключа через интернет</span></li>
+                            <li class="flex items-start gap-2.5"><span class="mt-0.5 text-white/40">✕</span> <span>Стандартный индикатор без кастомного верхнего HUD под меню</span></li>
+                            <li class="flex items-start gap-2.5"><span class="mt-0.5 text-white/40">✕</span> <span>Закрытый исходный код</span></li>
+                        </ul>
+                    </div>
+                    <div class="px-5 py-3.5 rounded-2xl bg-white/[0.04] text-center text-xs font-semibold text-white/40">
+                        Платная лицензия
+                    </div>
+                </div>
+
+                <!-- EdgeSwipe от @mirxxeet -->
+                <div class="reveal delay-100 rounded-3xl p-7 sm:p-9 bg-gradient-to-b from-[#231922] to-[#141419] border-2 border-pastelPink shadow-[0_0_60px_-15px_rgba(255,173,201,0.3)] flex flex-col justify-between relative">
+                    <div class="absolute -top-3.5 right-6 px-3.5 py-1 rounded-full bg-pastelPink text-bgDark font-black text-xs uppercase tracking-wider">
+                        Бесплатно навсегда
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold uppercase tracking-wider text-pastelPink mb-2">EdgeSwipe от @mirxxeet</div>
+                        <div class="flex items-baseline gap-3 mb-6">
+                            <span class="text-5xl sm:text-6xl font-black text-white">0 ₽</span>
+                            <span class="text-sm text-pastelPink font-semibold">один раз и навсегда</span>
+                        </div>
+                        <ul class="space-y-3.5 text-sm text-white/90 mb-8">
+                            <li class="flex items-start gap-2.5">
+                                <svg class="w-4 h-4 text-pastelPink shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                <span>Работает на любом количестве Mac без ключей и ограничений</span>
+                            </li>
+                            <li class="flex items-start gap-2.5">
+                                <svg class="w-4 h-4 text-pastelPink shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                <span>Нативная верхняя капсула HUD прямо под строкой меню macOS</span>
+                            </li>
+                            <li class="flex items-start gap-2.5">
+                                <svg class="w-4 h-4 text-pastelPink shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                <span>Настройка всех краёв, тактильного отклика и точного шага (⌥ + ⇧)</span>
+                            </li>
+                            <li class="flex items-start gap-2.5">
+                                <svg class="w-4 h-4 text-pastelPink shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                <span>Открытый исходный код на нативном Swift без фоновой слежки</span>
+                            </li>
+                        </ul>
+                    </div>
+                    <a href="./EdgeSwipe.dmg" download class="pink-btn w-full py-4 rounded-2xl font-extrabold text-center text-base block">
+                        Скачать EdgeSwipe
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- 8. ВОПРОСЫ И ОТВЕТЫ (Без упоминания имени и фамилии) -->
+        <section id="faq" class="max-w-3xl mx-auto px-4 sm:px-6 mb-28">
+            <div class="reveal text-center mb-12">
+                <span class="text-xs font-extrabold uppercase tracking-widest text-pastelPink">Вопросы</span>
+                <h2 class="text-3xl sm:text-5xl font-black tracking-tight mt-2">Вопросы и ответы</h2>
+            </div>
+
+            <div class="space-y-3.5">
+                <details class="reveal glass-card rounded-2xl p-5 group cursor-pointer" open>
+                    <summary class="font-bold text-base sm:text-lg text-white flex items-center justify-between list-none">
+                        <span>Почему EdgeSwipe полностью бесплатный?</span>
+                        <span class="text-pastelPink text-xl group-open:rotate-45 transition-transform">+</span>
+                    </summary>
+                    <p class="text-white/65 text-sm sm:text-base mt-3 leading-relaxed">
+                        Проект создан <a href="https://t.me/mirxxeet" target="_blank" class="text-pastelPink underline">@mirxxeet</a> для себя, друзей и всего комьюнити пользователей Mac. Базовые функции вроде регулировки громкости и яркости свайпом по трекпаду должны быть доступны каждому без платных ключей. Лучшая поддержка — подписка на Telegram и TikTok!
+                    </p>
+                </details>
+
+                <details class="reveal glass-card rounded-2xl p-5 group cursor-pointer">
+                    <summary class="font-bold text-base sm:text-lg text-white flex items-center justify-between list-none">
+                        <span>При первом запуске macOS пишет «Приложение не проверено». Что делать?</span>
+                        <span class="text-pastelPink text-xl group-open:rotate-45 transition-transform">+</span>
+                    </summary>
+                    <p class="text-white/65 text-sm sm:text-base mt-3 leading-relaxed">
+                        Это стандартное окно macOS для бесплатных инди-приложений. Просто кликните по иконке <b>EdgeSwipe</b> в папке «Программы» <b>правой кнопкой мыши → Открыть</b>, либо зайдите в «Системные настройки» → «Конфиденциальность и безопасность» и внизу нажмите <b>«Все равно открыть»</b>. Больше система спрашивать не будет.
+                    </p>
+                </details>
+
+                <details class="reveal glass-card rounded-2xl p-5 group cursor-pointer">
+                    <summary class="font-bold text-base sm:text-lg text-white flex items-center justify-between list-none">
+                        <span>Мешает ли EdgeSwipe обычной работе с трекпадом?</span>
+                        <span class="text-pastelPink text-xl group-open:rotate-45 transition-transform">+</span>
+                    </summary>
+                    <p class="text-white/65 text-sm sm:text-base mt-3 leading-relaxed">
+                        Нет. Жест активируется только если палец изначально лёг в узкую зону у самого края (по умолчанию 6%). Если вы ведёте курсор из центра трекпада к краю, ничего не сработает. Кроме того, в меню можно в один клик поставить работу на паузу.
+                    </p>
+                </details>
+
+                <details class="reveal glass-card rounded-2xl p-5 group cursor-pointer">
+                    <summary class="font-bold text-base sm:text-lg text-white flex items-center justify-between list-none">
+                        <span>Какой нужен Mac?</span>
+                        <span class="text-pastelPink text-xl group-open:rotate-45 transition-transform">+</span>
+                    </summary>
+                    <p class="text-white/65 text-sm sm:text-base mt-3 leading-relaxed">
+                        Любой MacBook (Air или Pro на процессорах Apple Silicon M1/M2/M3/M4 или Intel) или настольный Mac с Magic Trackpad под управлением macOS 13 Ventura, macOS 14 Sonoma, macOS 15 Sequoia и новее.
+                    </p>
+                </details>
+            </div>
+        </section>
+
+        <!-- 9. ФИНАЛЬНЫЙ ПРИЗЫВ И ССЫЛКИ @MIRXXEET (Без имени и фамилии) -->
+        <section class="max-w-4xl mx-auto px-4 sm:px-6 text-center">
+            <div class="reveal glass-card rounded-[32px] p-8 sm:p-14 border border-pastelPink/30 relative overflow-hidden">
+                <div class="w-16 h-16 rounded-2xl bg-white mx-auto flex items-center justify-center shadow-xl border-2 border-pastelPink mb-6">
+                    <span class="text-2xl font-black text-[#121217]">ES</span>
+                </div>
+                <h2 class="text-3xl sm:text-5xl font-black tracking-tight mb-4">
+                    Края трекпада простаивали.<br><span class="pink-gradient-text">Теперь нет.</span>
+                </h2>
+                <p class="text-white/65 max-w-lg mx-auto text-sm sm:text-base mb-8">
+                    Пара свайпов — и вы забудете, где на клавиатуре находятся кнопки громкости и яркости.
+                </p>
+                <div class="flex justify-center mb-9">
+                    <a href="./EdgeSwipe.dmg" download class="pink-btn px-10 py-4 rounded-2xl font-extrabold text-base">
+                        Скачать EdgeSwipe
+                    </a>
+                </div>
+
+                <!-- Авторские ссылки @mirxxeet -->
+                <div class="pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-center gap-4">
+                    <span class="text-sm text-white/60">сделано <strong class="text-white">@mirxxeet</strong></span>
+                    <div class="flex items-center gap-3">
+                        <a href="https://t.me/mirxxeet" target="_blank" rel="noopener noreferrer"
+                           class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-pastelPink/15 hover:bg-pastelPink text-pastelPink hover:text-bgDark border border-pastelPink/40 text-xs font-bold transition">
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M21.9 3.4L2.2 11.1c-1.3.5-1.3 1.3-.2 1.6l5 1.6 11.6-7.3c.5-.3 1-.1.6.2l-9.4 8.5-.3 4.9c.5 0 .7-.2 1-.5l2.4-2.3 5 3.7c.9.5 1.6.2 1.8-.9L23 4.6c.3-1.3-.5-1.9-1.1-1.2z"/>
+                            </svg>
+                            <span>Telegram</span>
+                        </a>
+                        <a href="https://www.tiktok.com/@mirxxeet?_r=1&_t=ZN-9BIHo590SmM" target="_blank" rel="noopener noreferrer"
+                           class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-pastelPink/15 hover:bg-pastelPink text-pastelPink hover:text-bgDark border border-pastelPink/40 text-xs font-bold transition">
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z"/>
+                            </svg>
+                            <span>TikTok</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ПОДВАЛ САЙТА (Без имени и фамилии) -->
+    <footer class="border-t border-white/10 py-10 text-center text-xs text-white/40">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-2.5">
+                <div class="w-6 h-6 rounded-md bg-white flex items-center justify-center text-[#121217] font-black text-[10px]">ES</div>
+                <span>EdgeSwipe для macOS • Free & Open</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <span>сделано <a href="https://t.me/mirxxeet" target="_blank" class="text-pastelPink hover:underline">@mirxxeet</a></span>
+                <span>•</span>
+                <a href="https://t.me/mirxxeet" target="_blank" class="hover:text-white transition">Telegram</a>
+                <a href="https://www.tiktok.com/@mirxxeet?_r=1&_t=ZN-9BIHo590SmM" target="_blank" class="hover:text-white transition">TikTok</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- СКРИПТЫ: АНИМАЦИИ СКРОЛЛА, СИМУЛЯТОР ТРЕКПАДА (С ВЕКТОРНЫМИ ИКОНКАМИ) И ПЕРЕКЛЮЧАТЕЛЬ ТЕМЫ -->
+    <script>
+        // 1. Плавное всплытие блоков при скролле
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('active');
+                }
+            });
+        }, { threshold: 0.12 });
+
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+        // 2. Векторные SVG-иконки для HUD (никаких эмодзи)
+        const svgSunMin = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path stroke-linecap="round" d="M12 3v1m0 16v1M4.22 4.22l.7.7m14.16 14.16l.7.7M3 12h1m16 0h1M4.22 19.78l.7-.7M19.08 4.92l.7-.7"/></svg>';
+        const svgSunMax = '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path stroke-linecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41"/></svg>';
+        const svgSpeakerLow = '<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M11 5L6 9H2v6h4l5 4V5z"/></svg>';
+        const svgSpeakerHigh = '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M11 5L6 9H2v6h4l5 4V5zm4.5 2.5a6.5 6.5 0 010 9l-1.4-1.4a4.5 4.5 0 000-6.2l1.4-1.4zm2.8-2.8a10.5 10.5 0 010 14.6l-1.4-1.4a8.5 8.5 0 000-11.8l1.4-1.4z"/></svg>';
+        const svgSpeakerMuted = '<svg class="w-3.5 h-3.5 text-pastelPink" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>';
+        const svgTrackPrev = '<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>';
+        const svgTrackNext = '<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>';
+
+        let simBrightness = 72;
+        let simVolume = 56;
+        let simMuted = false;
+        let isDragging = false;
+        let activeDragSide = null;
+        let startCoord = 0;
+
+        const trackList = [
+            '@mirxxeet — Night Drive',
+            '@mirxxeet — Pastel Skies',
+            '@mirxxeet — Late Coding',
+            '@mirxxeet — Midnight Air'
+        ];
+        let currentTrackIdx = 0;
+
+        const hudTitle = document.getElementById('hudTitle');
+        const hudPercentBadge = document.getElementById('hudPercentBadge');
+        const hudFillBar = document.getElementById('hudFillBar');
+        const hudLeftIcon = document.getElementById('hudLeftIcon');
+        const hudRightIcon = document.getElementById('hudRightIcon');
+        const demoStatusText = document.getElementById('demoStatusText');
+        const demoTrackText = document.getElementById('demoTrackText');
+
+        function updateHUD(mode, value) {
+            if (mode === 'brightness') {
+                hudTitle.innerText = 'Built-in Display';
+                hudPercentBadge.innerText = value + '%';
+                hudFillBar.style.width = value + '%';
+                hudLeftIcon.innerHTML = svgSunMin;
+                hudRightIcon.innerHTML = svgSunMax;
+                demoStatusText.innerText = 'Левый край • Яркость дисплея: ' + value + '%';
+            } else if (mode === 'volume') {
+                hudTitle.innerText = 'MacBook Air Speakers';
+                const effective = simMuted ? 0 : value;
+                hudPercentBadge.innerText = effective === 0 ? 'Muted' : effective + '%';
+                hudFillBar.style.width = effective + '%';
+                hudLeftIcon.innerHTML = effective === 0 ? svgSpeakerMuted : svgSpeakerLow;
+                hudRightIcon.innerHTML = effective === 0 ? svgSpeakerMuted : svgSpeakerHigh;
+                demoStatusText.innerText = effective === 0 ? 'Звук выключен (Mute)' : 'Правый край • Громкость: ' + value + '%';
+            }
+        }
+
+        function setBrightnessVal(val) {
+            simBrightness = Math.max(0, Math.min(100, Math.round(val)));
+            document.getElementById('leftEdgeFill').style.height = simBrightness + '%';
+            document.getElementById('centerBrightness').innerText = simBrightness;
+            updateHUD('brightness', simBrightness);
+        }
+
+        function setVolumeVal(val) {
+            simVolume = Math.max(0, Math.min(100, Math.round(val)));
+            if (simVolume > 0) simMuted = false;
+            const effective = simMuted ? 0 : simVolume;
+            document.getElementById('rightEdgeFill').style.height = effective + '%';
+            document.getElementById('centerVolume').innerText = effective;
+            updateHUD('volume', simVolume);
+        }
+
+        const leftEdgeZone = document.getElementById('leftEdgeZone');
+        const rightEdgeZone = document.getElementById('rightEdgeZone');
+        const bottomEdgeZone = document.getElementById('bottomEdgeZone');
+        const cornerTapZone = document.getElementById('cornerTapZone');
+
+        function handlePointerDown(side, clientX, clientY) {
+            isDragging = true;
+            activeDragSide = side;
+            startCoord = side === 'bottom' ? clientX : clientY;
+        }
+
+        function handlePointerMove(clientX, clientY) {
+            if (!isDragging || !activeDragSide) return;
+            if (activeDragSide === 'left') {
+                const deltaY = startCoord - clientY;
+                startCoord = clientY;
+                setBrightnessVal(simBrightness + deltaY * 0.45);
+            } else if (activeDragSide === 'right') {
+                const deltaY = startCoord - clientY;
+                startCoord = clientY;
+                setVolumeVal(simVolume + deltaY * 0.45);
+            } else if (activeDragSide === 'bottom') {
+                const deltaX = clientX - startCoord;
+                if (Math.abs(deltaX) > 45) {
+                    startCoord = clientX;
+                    currentTrackIdx = (currentTrackIdx + (deltaX > 0 ? 1 : trackList.length - 1)) % trackList.length;
+                    const trackName = trackList[currentTrackIdx];
+                    hudTitle.innerText = deltaX > 0 ? 'Следующий трек' : 'Предыдущий трек';
+                    hudPercentBadge.innerText = deltaX > 0 ? 'Next' : 'Prev';
+                    hudLeftIcon.innerHTML = svgTrackPrev;
+                    hudRightIcon.innerHTML = svgTrackNext;
+                    hudFillBar.style.width = deltaX > 0 ? '100%' : '20%';
+                    demoStatusText.innerText = 'Нижний край • Переключен трек: ' + trackName;
+                    demoTrackText.innerText = 'Now Playing: ' + trackName;
+                }
+            }
+        }
+
+        window.addEventListener('mouseup', () => { isDragging = false; activeDragSide = null; });
+        window.addEventListener('touchend', () => { isDragging = false; activeDragSide = null; });
+
+        leftEdgeZone.addEventListener('mousedown', e => handlePointerDown('left', e.clientX, e.clientY));
+        rightEdgeZone.addEventListener('mousedown', e => handlePointerDown('right', e.clientX, e.clientY));
+        bottomEdgeZone.addEventListener('mousedown', e => handlePointerDown('bottom', e.clientX, e.clientY));
+
+        window.addEventListener('mousemove', e => handlePointerMove(e.clientX, e.clientY));
+
+        leftEdgeZone.addEventListener('touchstart', e => handlePointerDown('left', e.touches[0].clientX, e.touches[0].clientY));
+        rightEdgeZone.addEventListener('touchstart', e => handlePointerDown('right', e.touches[0].clientX, e.touches[0].clientY));
+        bottomEdgeZone.addEventListener('touchstart', e => handlePointerDown('bottom', e.touches[0].clientX, e.touches[0].clientY));
+        window.addEventListener('touchmove', e => {
+            if (isDragging && e.touches[0]) {
+                handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        });
+
+        // Клик по кнопке Mute в углу трекпада
+        cornerTapZone.addEventListener('click', (e) => {
+            e.stopPropagation();
+            simMuted = !simMuted;
+            const effective = simMuted ? 0 : simVolume;
+            document.getElementById('rightEdgeFill').style.height = effective + '%';
+            document.getElementById('centerVolume').innerText = effective;
+            updateHUD('volume', simVolume);
+        });
+
+        // 3. Переключение Темной и Светлой темы в превью менюшки
+        function setPreviewTheme(theme) {
+            const menu = document.getElementById('appMenuReplica');
+            const statsCard = document.getElementById('replicaStatsCard');
+            const statusBtn = document.getElementById('replicaStatusBtn');
+            const btnDark = document.getElementById('btnDarkTheme');
+            const btnLight = document.getElementById('btnLightTheme');
+
+            if (theme === 'light') {
+                menu.className = 'w-full max-w-[366px] rounded-[22px] p-4 border transition-colors duration-300 shadow-[0_28px_70px_rgba(0,0,0,0.45)] bg-[#F5F5F9] border-black/10 text-[#121217]';
+                statsCard.className = 'rounded-2xl p-4 mb-4 flex items-center justify-between bg-white shadow-sm transition-colors duration-300';
+                statusBtn.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-white border border-black/10 text-[#121217]';
+                btnLight.className = 'px-5 py-2 rounded-xl text-xs font-bold bg-pastelPink text-bgDark transition';
+                btnDark.className = 'px-5 py-2 rounded-xl text-xs font-bold text-white/70 hover:text-white transition';
+            } else {
+                menu.className = 'w-full max-w-[366px] rounded-[22px] p-4 border transition-colors duration-300 shadow-[0_28px_70px_rgba(0,0,0,0.65)] bg-[#1C1C21] border-white/10 text-white';
+                statsCard.className = 'rounded-2xl p-4 mb-4 flex items-center justify-between bg-[#282830] transition-colors duration-300';
+                statusBtn.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#292930] border border-white/10 text-white';
+                btnDark.className = 'px-5 py-2 rounded-xl text-xs font-bold bg-pastelPink text-bgDark transition';
+                btnLight.className = 'px-5 py-2 rounded-xl text-xs font-bold text-white/70 hover:text-white transition';
+            }
+        }
+
+        let replicaWorking = true;
+        function toggleReplicaStatus() {
+            replicaWorking = !replicaWorking;
+            document.getElementById('replicaStatusDot').className = replicaWorking ? 'w-2 h-2 rounded-full bg-green-400' : 'w-2 h-2 rounded-full bg-gray-400';
+            document.getElementById('replicaStatusText').innerText = replicaWorking ? 'Работает' : 'Пауза';
+        }
+    </script>
+</body>
+</html>
